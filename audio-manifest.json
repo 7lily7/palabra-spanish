@@ -17,5 +17,8 @@
   "aprender": "audio/aprender.wav",
   "escribir": "audio/escribir.wav",
   "agua": "audio/agua.ogg",
-  "comida": "audio/comida.wav"
+  "comida": "audio/comida.wav",
+  "amigo": "audio/amigo.wav",
+  "amiga": "audio/amiga.wav",
+  "hoy": "audio/hoy.wav"
 }
