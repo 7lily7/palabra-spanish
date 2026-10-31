@@ -9,7 +9,7 @@ concurrency:
 jobs:
   download:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: Add small batch of licensed Spanish recordings
@@ -77,7 +77,7 @@ jobs:
           Path('audio').mkdir(exist_ok=True)
           for word in words:
               if word in manifest or word in skipped: continue
-              if checked>=4:break
+              if checked>=10:break
               checked+=1
               print('Checking',word,flush=True)
               try:
@@ -105,7 +105,7 @@ jobs:
                       break
               except Exception as e:
                   reports.append([word,type(e).__name__+': '+str(e)[:90]])
-              time.sleep(3)
+              time.sleep(6)
           old_missing = ROOT/'MISSING_AUDIO.csv'
           if old_missing.exists():
               with old_missing.open(encoding='utf-8-sig',newline='') as f:
