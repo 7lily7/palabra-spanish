@@ -36,5 +36,13 @@
   "hablar": "audio/hablar.wav",
   "vivir": "audio/vivir.wav",
   "estudiar": "audio/estudiar.wav",
-  "trabajo": "audio/trabajo.wav"
+  "trabajo": "audio/trabajo.wav",
+  "español": "audio/espanol.wav",
+  "chino": "audio/chino.wav",
+  "nombre": "audio/nombre.wav",
+  "apellido": "audio/apellido.wav",
+  "país": "audio/pais.wav",
+  "ciudad": "audio/ciudad.wav",
+  "nacionalidad": "audio/nacionalidad.wav",
+  "idioma": "audio/idioma.wav"
 }

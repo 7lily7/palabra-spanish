@@ -1,10 +1,10 @@
 ﻿Word,Status,Detail
-leer,Added,audio/leer.wav
-estar,Added,audio/estar.wav
-tener,Added,audio/tener.wav
-llamarse,Added,audio/llamarse.wav
-hablar,Added,audio/hablar.wav
-vivir,Added,audio/vivir.wav
-estudiar,Added,audio/estudiar.wav
-trabajo,Added,audio/trabajo.wav
-,Summary,Added 8; checked 8; total 38; rate limited False
+español,Added,audio/espanol.wav
+chino,Added,audio/chino.wav
+nombre,Added,audio/nombre.wav
+apellido,Added,audio/apellido.wav
+país,Added,audio/pais.wav
+ciudad,Added,audio/ciudad.wav
+nacionalidad,Added,audio/nacionalidad.wav
+idioma,Added,audio/idioma.wav
+,Summary,Added 8; checked 8; total 46; rate limited False
