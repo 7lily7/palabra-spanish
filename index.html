@@ -246,7 +246,7 @@ const commonsSamples={
  'adiós, hasta mañana':{file:'Adiós, hasta mañana.ogg',label:'欧洲西班牙语分类示例'}
 };
 function setAudioStatus(s){$('voiceStatus').textContent=s;message(s)}
-function stopAudio(){++audioToken;if(currentAudio){currentAudio.pause();currentAudio.removeAttribute('src');currentAudio.load();currentAudio=null}if(currentObjectURL){URL.revokeObjectURL(currentObjectURL);currentObjectURL=null}}
+function stopAudio(){if('speechSynthesis' in window)window.speechSynthesis.cancel();++audioToken;if(currentAudio){currentAudio.pause();currentAudio.removeAttribute('src');currentAudio.load();currentAudio=null}if(currentObjectURL){URL.revokeObjectURL(currentObjectURL);currentObjectURL=null}}
 $('stopVoice').onclick=()=>{stopAudio();setAudioStatus('已停止播放')};
 async function loadManifest(){try{const r=await fetch('./audio-manifest.json',{cache:'no-store'});if(r.ok){const m=await r.json();if(m&&typeof m==='object'&&!Array.isArray(m))audioManifest=m}}catch{}}
 const safeFile=v=>typeof v==='string'&&/^audio\/[\w\- .À-ž]+\.(mp3|ogg|wav|webm)$/i.test(v)&&!v.includes('..');
@@ -256,6 +256,22 @@ async function playURL(url,token,label){return new Promise((resolve,reject)=>{if
   a.preload='auto';a.onplaying=()=>{setAudioStatus('🔊 正在播放：'+label);done()};a.onerror=()=>done(Error('音频无法加载或格式不受支持'));
   a.src=url;a.play().catch(e=>done(Error('播放器拒绝播放：'+e.message)))
 })}
+function fallbackSpanishSpeech(es,token){
+  if(!('speechSynthesis' in window)||!('SpeechSynthesisUtterance' in window)){
+    setAudioStatus('本设备不支持语音合成；这个单词暂时没有真人录音。');return;
+  }
+  const engine=window.speechSynthesis;
+  const spanish=engine.getVoices().filter(v=>/^es(?:-|_)/i.test(v.lang));
+  if(!spanish.length){
+    setAudioStatus('未找到西班牙语语音包，请在设备设置中启用西语语音后重试。');return;
+  }
+  const voice=spanish.find(v=>/^es[-_]ES$/i.test(v.lang))||spanish[0];
+  const speech=new SpeechSynthesisUtterance(es);
+  speech.lang=voice.lang;speech.voice=voice;speech.rate=.88;speech.pitch=1.04;
+  speech.onstart=()=>{if(token===audioToken)setAudioStatus('🗣️ 合成语音：'+es+' · '+voice.lang+'（非真人录音）')};
+  speech.onerror=()=>{if(token===audioToken)setAudioStatus('合成发音失败，请检查音量或语音包设置。')};
+  engine.cancel();engine.speak(speech);
+}
 async function speak(es){const word=normalizeAudioKey(es);stopAudio();const token=audioToken;
   if(!word){setAudioStatus('没有可播放的单词');return}
   setAudioStatus('正在寻找录音：'+es);
@@ -264,7 +280,7 @@ async function speak(es){const word=normalizeAudioKey(es);stopAudio();const toke
     if(saved instanceof Blob&&saved.size){currentObjectURL=URL.createObjectURL(saved);await playURL(currentObjectURL,token,es+' · 本机录音');return}
     const mapped=audioManifest[word];if(safeFile(mapped)){try{await playURL('./'+mapped,token,es+' · 仓库录音');return}catch(e){if(token!==audioToken)return}}
     const entry=commonsSamples[word];if(entry){let url='https://commons.wikimedia.org/wiki/Special:Redirect/file/'+encodeURIComponent(entry.file);await playURL(url,token,es+' · '+entry.label);return}
-    setAudioStatus('“'+es+'”暂无已授权的站内录音。请上传自有录音；leer 可前往 Forvo 或 SpanishDict 官网试听，但不得未经授权转载。')
+    fallbackSpanishSpeech(es,token)
   }catch(e){if(token===audioToken)setAudioStatus('播放失败：'+e.message+'。可以上传自己的 MP3，避免依赖第三方网站。')}
 }
 $('testVoice').onclick=()=>speak('hola');
