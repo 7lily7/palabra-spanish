@@ -1,0 +1,57 @@
+{
+  "escuela": {
+    "text": "Ella va a la escuela caminando.",
+    "audio": "sentence-audio/48644.mp3",
+    "speaker": "hayastan",
+    "audio_license": "CC BY 4.0",
+    "sentence_author": "hayastan",
+    "text_license": "CC BY 2.0 FR",
+    "source": "https://tatoeba.org/en/sentences/show/941424",
+    "audio_id": "48644",
+    "attribution_url": ""
+  },
+  "semana": {
+    "text": "Ella va al supermercado una vez por semana.",
+    "audio": "sentence-audio/48656.mp3",
+    "speaker": "hayastan",
+    "audio_license": "CC BY 4.0",
+    "sentence_author": "hayastan",
+    "text_license": "CC BY 2.0 FR",
+    "source": "https://tatoeba.org/en/sentences/show/942383",
+    "audio_id": "48656",
+    "attribution_url": ""
+  },
+  "calle": {
+    "text": "Es otoño. La calle está cubierta de hojas secas.",
+    "audio": "sentence-audio/63511.mp3",
+    "speaker": "hayastan",
+    "audio_license": "CC BY 4.0",
+    "sentence_author": "hayastan",
+    "text_license": "CC BY 2.0 FR",
+    "source": "https://tatoeba.org/en/sentences/show/1101947",
+    "audio_id": "63511",
+    "attribution_url": ""
+  },
+  "supermercado": {
+    "text": "Ella va al supermercado una vez por semana.",
+    "audio": "sentence-audio/48656.mp3",
+    "speaker": "hayastan",
+    "audio_license": "CC BY 4.0",
+    "sentence_author": "hayastan",
+    "text_license": "CC BY 2.0 FR",
+    "source": "https://tatoeba.org/en/sentences/show/942383",
+    "audio_id": "48656",
+    "attribution_url": ""
+  },
+  "manzana": {
+    "text": "El chico tiene una manzana en el bolsillo.",
+    "audio": "sentence-audio/58938.mp3",
+    "speaker": "hayastan",
+    "audio_license": "CC BY 4.0",
+    "sentence_author": "hayastan",
+    "text_license": "CC BY 2.0 FR",
+    "source": "https://tatoeba.org/en/sentences/show/1075482",
+    "audio_id": "58938",
+    "attribution_url": ""
+  }
+}
