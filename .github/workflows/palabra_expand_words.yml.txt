@@ -1,0 +1,137 @@
+name: Palabra - Expand licensed word pronunciations
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: palabra-commons-audio
+  cancel-in-progress: false
+jobs:
+  expand:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Find and import verified Commons word recordings
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import csv, json, re, time, unicodedata, urllib.parse, urllib.request, urllib.error
+          from pathlib import Path
+          from html.parser import HTMLParser
+
+          root=Path('.')
+          text=(root/'index.html').read_text(encoding='utf-8')
+          manifest_file=root/'audio-manifest.json'
+          manifest=json.loads(manifest_file.read_text(encoding='utf-8'))
+          manifest={k:v for k,v in manifest.items() if isinstance(v,str) and (root/v).is_file()}
+          report=[]
+          api='https://commons.wikimedia.org/w/api.php'
+          headers={'User-Agent':'PalabraSpanish/2.0 (educational project; https://github.com/7lily7/palabra-spanish)', 'Accept':'application/json'}
+          def norm(v):
+              v=''.join(x for x in unicodedata.normalize('NFKD',str(v).lower()) if not unicodedata.combining(x))
+              return re.sub(r'[^a-z0-9]+',' ',v).strip()
+          def req(url,limit=6000000):
+              with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=30) as r:
+                  data=r.read(limit+1)
+                  if len(data)>limit:raise ValueError('File exceeds safe download size')
+                  return data
+          class Plain(HTMLParser):
+              def __init__(self):super().__init__();self.parts=[]
+              def handle_data(self,x):self.parts.append(x)
+          def plain(x):
+              p=Plain();p.feed(str(x or ''));return ' '.join(' '.join(p.parts).split())
+          def meta(obj,key):return plain((obj.get(key) or {}).get('value',''))
+          def eligible_license(license):
+              l=license.lower().replace('_','-').strip()
+              if any(x in l for x in ('-nc','-nd','noncommercial','no derivatives')):return False
+              return l.startswith(('cc by ','cc-by-','cc by-sa','cc-by-sa','cc0','public domain'))
+          def matches(filename,word):
+              f=norm(filename.rsplit('.',1)[0]);w=norm(word)
+              # Strict exact word at end, plus explicit Spanish-language filename marker.
+              # Common Wikimedia naming: Es-am-lat-casa; LL-Q12345 (spa)-casa.
+              return bool(w and (f==w or f.endswith(' '+w)) and
+                  (f.startswith('es ') or bool(re.match(r'^ll q\d+ spa ',f))))
+          def search(word):
+              q='intitle:"'+word.strip('¿?!¡')+'" filetype:audio'
+              params={'action':'query','format':'json','formatversion':'2','generator':'search','gsrsearch':q,
+                  'gsrnamespace':6,'gsrlimit':50,'prop':'imageinfo','iiprop':'url|extmetadata'}
+              data=json.loads(req(api+'?'+urllib.parse.urlencode(params),2000000))
+              result=[]
+              for page in data.get('query',{}).get('pages',[]):
+                  file=page.get('title','').removeprefix('File:')
+                  ext=file.rsplit('.',1)[-1].lower()
+                  if ext not in ('ogg','oga','wav','mp3'):continue
+                  if not matches(file,word):continue
+                  info=(page.get('imageinfo') or [{}])[0]
+                  metadata=info.get('extmetadata',{})
+                  license=meta(metadata,'LicenseShortName')
+                  if not eligible_license(license) or not info.get('url'):continue
+                  result.append((0 if norm(file).startswith('ll ') else 1,file,ext,info,metadata,license))
+              return sorted(result,key=lambda x:x[0])
+          words=[]
+          for book in ('bookModern','bookDele'):
+              found=re.search(r'const '+book+r'=(\[.*?\]);',text,re.S)
+              if not found:raise RuntimeError('Cannot locate original book: '+book)
+              words.extend(item['es'] for item in json.loads(found.group(1)))
+          words=['leer','estar','tener','llamarse']+words
+          words=list(dict.fromkeys(x.strip() for x in words if x.strip()))
+          credits_file=root/'AUDIO_CREDITS.csv'
+          columns=['Word','Commons file','Source page','License','Artist','Credit']
+          credits={}
+          if credits_file.exists():
+              with credits_file.open('r',encoding='utf-8-sig',newline='') as f:
+                  for row in csv.DictReader(f):
+                      if row.get('Word'):credits[row['Word']]=row
+          new=0;checked=0;limited=False
+          (root/'audio').mkdir(exist_ok=True)
+          for word in words:
+              if word in manifest:continue
+              if checked>=8:break
+              checked+=1
+              try:
+                  candidates=search(word)
+                  if not candidates:
+                      report.append([word,'No eligible Commons recording','No exact Spanish file plus supported reuse license'])
+                      continue
+                  _,filename,ext,info,metadata,license=candidates[0]
+                  payload=req(info['url'])
+                  if len(payload)<120:raise ValueError('Audio too small')
+                  if ext in ('ogg','oga') and not payload.startswith(b'OggS'):raise ValueError('Not Ogg data')
+                  if ext=='wav' and not payload.startswith(b'RIFF'):raise ValueError('Not WAV data')
+                  if ext=='mp3' and not (payload.startswith(b'ID3') or payload[:1]==b'\xff'):raise ValueError('Not MP3 data')
+                  slug=norm(word).replace(' ','-')
+                  suffix='ogg' if ext=='oga' else ext
+                  dest=root/'audio'/f'{slug}.{suffix}'
+                  dest.write_bytes(payload)
+                  manifest[word]=dest.as_posix()
+                  credits[word]={'Word':word,'Commons file':filename,'Source page':info.get('descriptionurl') or '',
+                      'License':license,'Artist':meta(metadata,'Artist'),'Credit':meta(metadata,'Credit')}
+                  new+=1
+                  report.append([word,'Added',dest.as_posix()])
+              except urllib.error.HTTPError as e:
+                  report.append([word,f'HTTP {e.code}',f'Retry-After: {e.headers.get("Retry-After","not supplied")}'])
+                  if e.code==429:
+                      limited=True
+                      break  # Respect the service's rate limits; no retry or evasion.
+              except Exception as e:
+                  report.append([word,type(e).__name__,str(e)[:150]])
+              time.sleep(4)
+          manifest_file.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          with credits_file.open('w',encoding='utf-8-sig',newline='') as f:
+              w=csv.DictWriter(f,fieldnames=columns,extrasaction='ignore');w.writeheader();w.writerows(credits.values())
+          with (root/'WORD_AUDIO_EXPANSION_REPORT.csv').open('w',encoding='utf-8-sig',newline='') as f:
+              w=csv.writer(f);w.writerow(['Word','Status','Detail']);w.writerows(report)
+              w.writerow(['','Summary',f'Added {new}; checked {checked}; total {len(manifest)}; rate limited {limited}'])
+          print(f'Added {new}; checked {checked}; indexed {len(manifest)}; rate-limited={limited}',flush=True)
+          PY
+      - name: Commit audio, manifest, licensing, and report
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add audio/ audio-manifest.json AUDIO_CREDITS.csv WORD_AUDIO_EXPANSION_REPORT.csv
+          if ! git diff --cached --quiet; then
+            git commit -m 'Expand licensed Palabra word pronunciation recordings'
+            git push
+          fi
