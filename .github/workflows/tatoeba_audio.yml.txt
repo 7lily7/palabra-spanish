@@ -1,0 +1,114 @@
+name: Palabra - Tatoeba open audio fallback
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: palabra-commons-audio
+  cancel-in-progress: false
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Find licensed Spanish word-only recordings from Tatoeba
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import bz2, csv, io, json, re, time, urllib.request, unicodedata
+          from pathlib import Path
+          root=Path('.')
+          index=(root/'index.html').read_text(encoding='utf-8')
+          manifest_file=root/'audio-manifest.json'
+          manifest=json.loads(manifest_file.read_text(encoding='utf-8')) if manifest_file.exists() else {}
+          manifest={k:v for k,v in manifest.items() if isinstance(v,str) and (root/v).is_file()}
+          # Both book lists are embedded JSON arrays in the existing V4 HTML.
+          vocab=[]
+          for pattern in [r'const bookModern=(\[.*?\]);', r'const bookDele=(\[.*?\]);']:
+              match=re.search(pattern,index,re.S)
+              if not match: raise RuntimeError('V4 vocabulary lists not found')
+              vocab.extend(x['es'].strip() for x in json.loads(match.group(1)))
+          starter=re.search(r'const starter=(\[.*?\])\.map\(',index,re.S)
+          if starter:
+              # Handle starter entries via simple first-quoted string extraction.
+              vocab.extend(re.findall(r"\['([^']+)'",starter.group(1)))
+          def norm(s):
+              return unicodedata.normalize('NFC',s.strip().lower()).strip(' ¡!¿?.,;:«»“”"\'')
+          needed={norm(w):w for w in vocab if w and w not in manifest}
+          for w in ['leer','casa']:
+              if w not in manifest:needed[w]=w
+          audio_dir=root/'audio';audio_dir.mkdir(exist_ok=True)
+          base='https://downloads.tatoeba.org/exports/per_language/spa/'
+          agent={'User-Agent':'PalabraEducationalAudioImporter/1.0 (source: Tatoeba downloads)'}
+          def get(url):
+              with urllib.request.urlopen(urllib.request.Request(url,headers=agent),timeout=90) as r:return r.read()
+          def readtsv(name):
+              b=get(base+name)
+              with bz2.open(io.BytesIO(b),'rt',encoding='utf-8',newline='') as f:
+                  yield from csv.reader(f,delimiter='\t')
+          # Sentences are (sentence_id, language, text).
+          hits={}
+          for row in readtsv('spa_sentences.tsv.bz2'):
+              if len(row)<3:continue
+              sid,lang,phrase=row[:3]
+              key=norm(phrase)
+              if lang=='spa' and key in needed and len(phrase.strip())<=len(needed[key])+3:
+                  hits.setdefault(sid,key)
+          print('Exact Spanish utterances found in sentence export:',len(hits),flush=True)
+          # Audio metadata: sentence id, audio id, username, license, attribution URL.
+          approved={}
+          for row in readtsv('spa_sentences_with_audio.tsv.bz2'):
+              if len(row)<4 or row[0] not in hits:continue
+              sid,audioid,user,lic=row[:4]
+              license_norm=lic.lower().replace('_','-').strip()
+              if not (license_norm in ('cc0','cc0 1.0','cc-by','cc-by 2.0','cc-by 3.0','cc-by 4.0','cc-by-sa','cc-by-sa 3.0','cc-by-sa 4.0') or
+                      re.fullmatch(r'cc[- ]by(?:[- ]sa)?[- ]?[234]\.0',license_norm)):
+                  continue
+              if not audioid.isdecimal():continue
+              key=hits[sid]
+              if key not in approved:approved[key]=(sid,audioid,user,lic,row[4] if len(row)>4 else '')
+          credits=root/'AUDIO_CREDITS.csv'
+          existing=[]
+          if credits.exists():
+              with credits.open(encoding='utf-8-sig',newline='') as f:existing=list(csv.DictReader(f))
+          columns=['Word','Commons file','Source page','License','Artist','Credit']
+          records={r['Word']:r for r in existing if r.get('Word')}
+          report=[];added=0
+          for key,word in needed.items():
+              if added>=12:break
+              if key not in approved:continue
+              sid,audioid,user,lic,attr=approved[key]
+              url=f'https://tatoeba.org/audio/download/{audioid}'
+              try:
+                  payload=get(url)
+                  if not 1000<=len(payload)<=5*1024*1024:raise ValueError('Unusable audio size')
+                  slug=unicodedata.normalize('NFKD',word).encode('ascii','ignore').decode().lower()
+                  slug=re.sub(r'[^a-z0-9]+','-',slug).strip('-')
+                  target=audio_dir/(slug+'.mp3')
+                  if not target.exists():target.write_bytes(payload)
+                  manifest[word]=target.as_posix()
+                  records[word]={'Word':word,'Commons file':f'Tatoeba audio {audioid}',
+                      'Source page':f'https://tatoeba.org/en/sentences/show/{sid}',
+                      'License':lic,'Artist':user,'Credit':f'Tatoeba audio: {audioid}; {attr}'}
+                  added+=1;report.append([word,'Saved',str(target),lic,user])
+                  print('Saved',word,target,flush=True)
+              except Exception as ex:report.append([word,'Error',str(ex)[:110],lic,user])
+              time.sleep(2)
+          if not added:report.append(['','No exact-match openly licensed word-only clips found','','',''])
+          manifest_file.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          with credits.open('w',newline='',encoding='utf-8-sig') as f:
+              writer=csv.DictWriter(f,fieldnames=columns,extrasaction='ignore');writer.writeheader();writer.writerows(records.values())
+          with (root/'TATOEBA_AUDIO_REPORT.csv').open('w',newline='',encoding='utf-8-sig') as f:
+              writer=csv.writer(f);writer.writerow(['Word','Result','Path or reason','License','Speaker']);writer.writerows(report)
+          print('Added',added,'Total',len(manifest),flush=True)
+          PY
+      - name: Save licensed audio and provenance
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add audio/ audio-manifest.json AUDIO_CREDITS.csv TATOEBA_AUDIO_REPORT.csv
+          if ! git diff --cached --quiet; then
+            git commit -m 'Add Tatoeba licensed Spanish word audio fallback'
+            git push
+          fi
