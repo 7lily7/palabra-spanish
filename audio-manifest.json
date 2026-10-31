@@ -1,1 +1,7 @@
-{}
+{
+  "hola": "audio/hola.ogg",
+  "gracias": "audio/gracias.ogg",
+  "adiós": "audio/adios.ogg",
+  "buenos días": "audio/buenos-dias.ogg",
+  "clase": "audio/clase.wav"
+}
