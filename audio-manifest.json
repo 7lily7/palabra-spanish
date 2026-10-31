@@ -60,5 +60,13 @@
   "bolígrafo": "audio/boligrafo.wav",
   "mesa": "audio/mesa.wav",
   "silla": "audio/silla.wav",
-  "ventana": "audio/ventana.wav"
+  "ventana": "audio/ventana.wav",
+  "puerta": "audio/puerta.wav",
+  "ordenador": "audio/ordenador.wav",
+  "comprender": "audio/comprender.wav",
+  "repetir": "audio/repetir.wav",
+  "contestar": "audio/contestar.wav",
+  "abrir": "audio/abrir.wav",
+  "cerrar": "audio/cerrar.wav",
+  "escuela": "audio/escuela.wav"
 }
