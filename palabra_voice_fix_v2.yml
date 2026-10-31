@@ -1,0 +1,70 @@
+name: Palabra - Fix Android Spanish speech V2
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Repair voice loading and add a TTS test button
+        shell: bash
+        run: |
+          python3 - <<'PYFIX'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          start=s.index('function fallbackSpanishSpeech(es,token){')
+          end=s.index('async function speak(es){',start)
+          fix=r'''function fallbackSpanishSpeech(es,token){
+            if(!('speechSynthesis' in window)||!('SpeechSynthesisUtterance' in window)){
+              setAudioStatus('本浏览器不支持语音合成。');return;
+            }
+            const engine=window.speechSynthesis;
+            function run(){
+              if(token!==audioToken)return;
+              const spanish=engine.getVoices().filter(v=>/^es(?:-|_)/i.test(v.lang));
+              if(!spanish.length){
+                setAudioStatus('没有检测到西班牙语语音包；请在安卓文字转语音设置中安装西班牙语。');return;
+              }
+              const voice=spanish.find(v=>/^es[-_]ES$/i.test(v.lang))||spanish[0];
+              const speech=new SpeechSynthesisUtterance(es);
+              speech.lang=voice.lang;speech.voice=voice;speech.rate=.88;speech.pitch=1.04;
+              speech.onstart=()=>{if(token===audioToken)setAudioStatus('🗣️ 合成语音 '+es+' · '+voice.lang+'（非真人录音）')};
+              speech.onerror=e=>{if(token===audioToken)setAudioStatus('合成语音失败：'+e.error+'，请检查安卓语音引擎。')};
+              engine.cancel();engine.speak(speech);
+            }
+            if(engine.getVoices().some(v=>/^es(?:-|_)/i.test(v.lang))){run();return;}
+            setAudioStatus('正在加载安卓系统的西班牙语语音列表…');
+            let done=false;
+            const listener=()=>{if(!done){done=true;engine.removeEventListener?.('voiceschanged',listener);run();}};
+            engine.addEventListener?.('voiceschanged',listener);
+            setTimeout(listener,1800);
+          }
+          '''
+          s=s[:start]+fix+s[end:]
+          old="const entry=commonsSamples[word];if(entry){let url='https://commons.wikimedia.org/wiki/Special:Redirect/file/'+encodeURIComponent(entry.file);await playURL(url,token,es+' · '+entry.label);return}"
+          new="const entry=commonsSamples[word];if(entry){let url='https://commons.wikimedia.org/wiki/Special:Redirect/file/'+encodeURIComponent(entry.file);try{await playURL(url,token,es+' · '+entry.label);return}catch(e){if(token!==audioToken)return}}"
+          if old in s:s=s.replace(old,new,1)
+          if 'id="ttsTry"' not in s:
+              old='<button id="speak">🔊 西语发音</button>'
+              if old not in s:raise RuntimeError('Cannot find speech button')
+              s=s.replace(old,old+'<button type="button" id="ttsTry">🗣️ 合成发音测试</button>',1)
+          needle="$('testVoice').onclick=()=>speak('hola');"
+          if "$('ttsTry').onclick" not in s:
+              if needle not in s:raise RuntimeError('Cannot locate voice handlers')
+              s=s.replace(needle,"$('ttsTry').onclick=()=>{stopAudio();fallbackSpanishSpeech($('es').textContent.trim()||'hola',audioToken)};\n"+needle,1)
+          p.write_text(s,encoding='utf-8')
+          print('Patched index.html:',len(s),'characters')
+          PYFIX
+      - name: Commit update
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          if ! git diff --cached --quiet; then
+            git commit -m 'Repair Android Spanish speech fallback'
+            git push
+          fi
