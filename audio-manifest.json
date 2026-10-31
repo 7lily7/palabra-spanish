@@ -28,5 +28,13 @@
   "viajar": "audio/viajar.wav",
   "feliz": "audio/feliz.wav",
   "ser": "audio/ser.wav",
-  "casa": "audio/casa.ogg"
+  "casa": "audio/casa.ogg",
+  "leer": "audio/leer.wav",
+  "estar": "audio/estar.wav",
+  "tener": "audio/tener.wav",
+  "llamarse": "audio/llamarse.wav",
+  "hablar": "audio/hablar.wav",
+  "vivir": "audio/vivir.wav",
+  "estudiar": "audio/estudiar.wav",
+  "trabajo": "audio/trabajo.wav"
 }
