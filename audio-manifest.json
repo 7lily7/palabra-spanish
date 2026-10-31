@@ -52,5 +52,13 @@
   "respuesta": "audio/respuesta.wav",
   "palabra": "audio/palabra.wav",
   "frase": "audio/frase.wav",
-  "página": "audio/pagina.wav"
+  "página": "audio/pagina.wav",
+  "lección": "audio/leccion.wav",
+  "ejercicio": "audio/ejercicio.wav",
+  "pizarra": "audio/pizarra.wav",
+  "lápiz": "audio/lapiz.wav",
+  "bolígrafo": "audio/boligrafo.wav",
+  "mesa": "audio/mesa.wav",
+  "silla": "audio/silla.wav",
+  "ventana": "audio/ventana.wav"
 }
