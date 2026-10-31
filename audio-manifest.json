@@ -8,5 +8,10 @@
   "perdón": "audio/perdon.ogg",
   "¿qué tal?": "audio/que-tal.ogg",
   "mucho gusto": "audio/mucho-gusto.ogg",
-  "libro": "audio/libro.wav"
+  "libro": "audio/libro.wav",
+  "profesor": "audio/profesor.wav",
+  "profesora": "audio/profesora.wav",
+  "estudiante": "audio/estudiante.wav",
+  "universidad": "audio/universidad.wav",
+  "biblioteca": "audio/biblioteca.wav"
 }
