@@ -13,5 +13,9 @@
   "profesora": "audio/profesora.wav",
   "estudiante": "audio/estudiante.wav",
   "universidad": "audio/universidad.wav",
-  "biblioteca": "audio/biblioteca.wav"
+  "biblioteca": "audio/biblioteca.wav",
+  "aprender": "audio/aprender.wav",
+  "escribir": "audio/escribir.wav",
+  "agua": "audio/agua.ogg",
+  "comida": "audio/comida.wav"
 }
