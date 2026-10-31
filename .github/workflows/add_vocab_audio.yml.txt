@@ -1,0 +1,133 @@
+name: Palabra - Add V4 vocabulary audio
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: palabra-commons-audio
+  cancel-in-progress: false
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add small batch of licensed Spanish recordings
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import csv, html, json, re, time, unicodedata
+          import urllib.error, urllib.parse, urllib.request
+          from pathlib import Path
+          from html.parser import HTMLParser
+
+          ROOT = Path('.')
+          INDEX = (ROOT/'index.html').read_text(encoding='utf-8')
+          manifest_path = ROOT/'audio-manifest.json'
+          manifest = json.loads(manifest_path.read_text(encoding='utf-8')) if manifest_path.exists() else {}
+          manifest = {k:v for k,v in manifest.items() if isinstance(v,str) and (ROOT/v).is_file()}
+          credits_path = ROOT/'AUDIO_CREDITS.csv'
+          with credits_path.open(encoding='utf-8-sig',newline='') as f:
+              old = list(csv.DictReader(f)) if credits_path.exists() else []
+          credits = {r['Word']:r for r in old if r.get('Word')}
+          heads = ['Word','Commons file','Source page','License','Artist','Credit']
+          skipped_path = ROOT/'V4_AUDIO_SKIPPED.json'
+          skipped = set(json.loads(skipped_path.read_text(encoding='utf-8'))) if skipped_path.exists() else set()
+          words = ['leer','casa']
+          for book in ('bookModern','bookDele'):
+              found = re.search(r'const '+book+r'=(\[.*?\]);',INDEX,re.S)
+              if not found: raise RuntimeError('Cannot read '+book+' from V4 index.html')
+              words.extend(item['es'] for item in json.loads(found.group(1)))
+          words = list(dict.fromkeys(words))
+          def norm(s):
+              s = unicodedata.normalize('NFKD',s.casefold())
+              return re.sub(r'[^a-z0-9]+',' ',''.join(c for c in s if not unicodedata.combining(c))).strip()
+          class Plain(HTMLParser):
+              def __init__(self): super().__init__(); self.parts=[]
+              def handle_data(self,s): self.parts.append(s)
+          def plain(s):
+              p=Plain();p.feed(str(s or ''));return ' '.join(' '.join(p.parts).split())
+          def metadata(m,k): return plain((m.get(k) or {}).get('value',''))
+          def request(url):
+              req=urllib.request.Request(url,headers={'User-Agent':'PalabraSpanishVocabulary/1.0 (educational GitHub Pages site; contact via 7lily7/palabra-spanish)','Accept':'application/json'})
+              with urllib.request.urlopen(req,timeout=22) as response:return response.read(5*1024*1024+1)
+          def search(word):
+              query = 'intitle:"'+word.strip('¿?')+'" filetype:audio'
+              params={'action':'query','format':'json','formatversion':'2','generator':'search','gsrsearch':query,'gsrnamespace':6,'gsrlimit':30,'prop':'imageinfo','iiprop':'url|extmetadata','iiextmetadatafilter':'LicenseShortName|Artist|Credit'}
+              url='https://commons.wikimedia.org/w/api.php?'+urllib.parse.urlencode(params)
+              pages=json.loads(request(url)).get('query',{}).get('pages',[])
+              results=[];target=norm(word.strip('¿?'))
+              for page in pages:
+                  title=page.get('title','').removeprefix('File:')
+                  stem,sep,ext=title.rpartition('.')
+                  if ext.lower() not in ('ogg','oga','wav','mp3','webm'):continue
+                  # Only clearly labelled Spanish recordings of exactly this word/phrase.
+                  filename = norm(stem)
+                  if not (filename.startswith('es ') or re.match(r'^ll q1321 spa ',filename)):continue
+                  if not (filename==target or filename.endswith(' '+target)):continue
+                  info=(page.get('imageinfo') or [{}])[0]
+                  meta=info.get('extmetadata') or {}
+                  license=metadata(meta,'LicenseShortName')
+                  l=license.lower().replace('-',' ').replace('_',' ')
+                  if not (l.startswith('cc by ') or l.startswith('cc by sa ') or l.startswith('cc0') or l.startswith('public domain')):continue
+                  if not info.get('url'):continue
+                  results.append((0 if filename.startswith('ll q1321 spa ') else 1,title,ext.lower(),info,meta,license))
+              return sorted(results,key=lambda x:x[0])
+          new=0; checked=0; reports=[]
+          Path('audio').mkdir(exist_ok=True)
+          for word in words:
+              if word in manifest or word in skipped: continue
+              if checked>=4:break
+              checked+=1
+              print('Checking',word,flush=True)
+              try:
+                  candidates=search(word)
+                  if not candidates:
+                      reports.append([word,'No verified Commons recording found'])
+                      skipped.add(word)
+                      continue
+                  _,title,ext,info,meta,license=candidates[0]
+                  suffix='.ogg' if ext=='oga' else '.'+ext
+                  slug=norm(word).replace(' ','-')
+                  destination=Path('audio')/(slug+suffix)
+                  payload=request(info['url'])
+                  if len(payload)<100 or len(payload)>5*1024*1024:
+                      reports.append([word,'Audio file empty or too large']);continue
+                  destination.write_bytes(payload)
+                  manifest[word]=destination.as_posix()
+                  credits[word]=dict(zip(heads,[word,title,info.get('descriptionurl') or 'https://commons.wikimedia.org/wiki/File:'+urllib.parse.quote(title.replace(' ','_')),license,metadata(meta,'Artist'),metadata(meta,'Credit')]))
+                  new+=1
+                  print('Saved',destination,flush=True)
+              except urllib.error.HTTPError as e:
+                  reports.append([word,'HTTP '+str(e.code)])
+                  if e.code==429:
+                      print('Rate limited: stopping without retries',flush=True)
+                      break
+              except Exception as e:
+                  reports.append([word,type(e).__name__+': '+str(e)[:90]])
+              time.sleep(3)
+          old_missing = ROOT/'MISSING_AUDIO.csv'
+          if old_missing.exists():
+              with old_missing.open(encoding='utf-8-sig',newline='') as f:
+                  current = list(csv.DictReader(f))
+              with old_missing.open('w',newline='',encoding='utf-8-sig') as f:
+                  writer=csv.DictWriter(f,fieldnames=['Word','Reason']);writer.writeheader()
+                  writer.writerows(row for row in current if row.get('Word') not in manifest)
+          skipped_path.write_text(json.dumps(sorted(skipped),ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          manifest_path.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          with credits_path.open('w',newline='',encoding='utf-8-sig') as f:
+              writer=csv.DictWriter(f,fieldnames=heads,extrasaction='ignore');writer.writeheader();writer.writerows(credits.values())
+          with (ROOT/'V4_AUDIO_REPORT.csv').open('w',newline='',encoding='utf-8-sig') as f:
+              writer=csv.writer(f);writer.writerow(['Word','Result']);writer.writerows(reports)
+          print('NEW',new,'TOTAL',len(manifest),'CHECKED',checked,flush=True)
+          PY
+      - name: Commit audio files and provenance
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add audio/ audio-manifest.json AUDIO_CREDITS.csv MISSING_AUDIO.csv V4_AUDIO_REPORT.csv V4_AUDIO_SKIPPED.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Extend Palabra V4 Commons audio library safely'
+            git push
+          fi
