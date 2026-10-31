@@ -1,0 +1,201 @@
+name: Palabra - Three-source pronunciation and sentence listening
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: palabra-commons-audio
+  cancel-in-progress: false
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create local sentence player
+        shell: bash
+        run: |
+          cat > sentence-listening.js <<'SENTENCE_JS'
+          /* Palabra V4 optional sentence listening panel: locally hosted, no external JS. */
+          (()=>{'use strict';
+            const clean=s=>String(s||'').normalize('NFC').trim().toLocaleLowerCase('es').replace(/^[¡¿\s]+|[!?.,;:\s]+$/g,'');
+            const panel=document.getElementById('learn'), card=document.getElementById('es');
+            if(!panel||!card||document.getElementById('palabraSentencePanel'))return;
+            const section=document.createElement('section');section.id='palabraSentencePanel';section.setAttribute('aria-label','西语例句听力');
+            section.style.cssText='margin:18px 0 6px;padding:16px;border:1px solid #dce6dc;border-radius:16px;background:#f6faf6;line-height:1.65';
+            const heading=document.createElement('strong');heading.textContent='🎧 真人例句听力 · Tatoeba';
+            const sentence=document.createElement('p');sentence.id='palabraSentenceText';sentence.style.cssText='font-size:16px;min-height:26px;overflow-wrap:anywhere;margin:10px 0';
+            const controls=document.createElement('div');controls.style.cssText='display:flex;gap:10px;flex-wrap:wrap;align-items:center';
+            const play=document.createElement('button');play.type='button';play.textContent='▶ 播放整句';play.disabled=true;
+            const link=document.createElement('a');link.target='_blank';link.rel='noopener noreferrer';link.textContent='查看来源与许可';link.hidden=true;link.style.cssText='font-size:13px;color:#287657';
+            const status=document.createElement('p');status.setAttribute('role','status');status.style.cssText='font-size:12px;color:#64776d;margin:8px 0 0';
+            controls.append(play,link);section.append(heading,sentence,controls,status);panel.append(section);
+            let data={},audio=null,current='';
+            function show(){
+              const key=clean(card.textContent), v=data[key];current=key;
+              if(audio){audio.pause();audio=null;}
+              sentence.textContent=v?.text||'这个单词暂时没有授权的真人例句录音。';
+              play.disabled=!(v?.audio&&/^sentence-audio\/[a-zA-Z0-9_-]+\.mp3$/.test(v.audio));
+              link.hidden=!(v?.source&&/^https:\/\/tatoeba\.org\//.test(v.source));
+              if(!link.hidden)link.href=v.source;
+              status.textContent=v?`音频：${v.speaker||'Tatoeba 贡献者'} · ${v.audio_license||'许可待核验'}；例句文本：CC BY 2.0 FR`:'单词发音请使用卡片上方的「西语发音」按钮。';
+            }
+            play.addEventListener('click',async()=>{
+              const v=data[current];if(!v||!v.audio||play.disabled)return;
+              try{if(audio)audio.pause();audio=new Audio('./'+v.audio);await audio.play();status.textContent='正在播放整句真人录音。';
+              }catch{status.textContent='音频加载失败，请检查 GitHub Pages 的音频文件。';}
+            });
+            const observer=new MutationObserver(show);observer.observe(card,{childList:true,characterData:true,subtree:true});
+            fetch('./sentence-manifest.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('not found');return r.json()}).then(j=>{if(j&&typeof j==='object'&&!Array.isArray(j))data=j;show();}).catch(()=>show());
+            show();
+          })();
+          SENTENCE_JS
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('index.html')
+          content=path.read_text(encoding='utf-8')
+          marker='<script src="./sentence-listening.js" defer></script>'
+          if marker not in content:
+              if '</body>' not in content:raise RuntimeError('Unexpected homepage format')
+              content=content.replace('</body>',marker+'</body>',1)
+              path.write_text(content,encoding='utf-8')
+          PY
+      - name: Import verified Commons word and Tatoeba sentence audio
+        shell: bash
+        run: |
+          cat > /tmp/palabra_import_audio.py <<'PY'
+          import bz2, csv, io, json, re, time, urllib.error, urllib.parse, urllib.request, unicodedata
+          from pathlib import Path
+          
+          root=Path('.')
+          index=(root/'index.html').read_text(encoding='utf-8')
+          manifest_path=root/'audio-manifest.json'
+          manifest=json.loads(manifest_path.read_text(encoding='utf-8')) if manifest_path.exists() else {}
+          sentence_path=root/'sentence-manifest.json'
+          sentences=json.loads(sentence_path.read_text(encoding='utf-8')) if sentence_path.exists() else {}
+          report=[]
+          headers={'User-Agent':'PalabraStudy/1.0 (educational vocabulary project; https://github.com/7lily7/palabra-spanish)'}
+          
+          def download(url, maxbytes=14000000):
+              req=urllib.request.Request(url,headers=headers)
+              with urllib.request.urlopen(req,timeout=90) as f:
+                  data=f.read(maxbytes+1)
+              if not data or len(data)>maxbytes: raise ValueError('empty or too large')
+              return data
+          
+          def text_csv_bz2(url):
+              data=download(url)
+              with bz2.open(io.BytesIO(data),'rt',encoding='utf-8',newline='') as f:
+                  yield from csv.reader(f,delimiter='\t')
+          
+          def norm(s):
+              return unicodedata.normalize('NFC',str(s).strip().lower()).strip(' ¡!¿?.,;:«»“”"\'')
+          
+          def valid_audio_license(value):
+              license=re.sub(r'\s+',' ',(value or '').strip().lower())
+              if not license or any(s in license for s in ('-nc','-nd','noncommercial','no derivatives')):return False
+              return bool(re.match(r'^(cc0|cc[- ]by(?:[- ]sa)?(?:[ -]|$)|public domain)',license))
+          
+          # Fix one known, independently verified CC0 word recording.
+          if 'casa' not in manifest:
+              try:
+                  file_name='File:Es-am-lat-casa.ogg'
+                  params=urllib.parse.urlencode({'action':'query','format':'json','formatversion':'2','titles':file_name,'prop':'imageinfo','iiprop':'url|extmetadata'})
+                  meta=json.loads(download('https://commons.wikimedia.org/w/api.php?'+params,1000000))
+                  pages=meta.get('query',{}).get('pages',[])
+                  info=(pages[0].get('imageinfo') or [{}])[0] if pages else {}
+                  license=(info.get('extmetadata',{}).get('LicenseShortName') or {}).get('value','').strip()
+                  if not ('cc0' in license.lower() or 'public domain' in license.lower()):raise ValueError('CC0 license not confirmed')
+                  b=download(info['url'],5*1024*1024)
+                  if not b.startswith(b'OggS'):raise ValueError('not an Ogg file')
+                  (root/'audio').mkdir(exist_ok=True)
+                  (root/'audio/casa.ogg').write_bytes(b)
+                  manifest['casa']='audio/casa.ogg'
+                  report.append(['casa','Commons word audio added','CC0 1.0'])
+                  # Keep provenance in separate file; do not overwrite existing credits CSV.
+                  (root/'EXTRA_AUDIO_CREDITS.csv').write_text('Word,Source,Author,License\ncasa,https://commons.wikimedia.org/wiki/File:Es-am-lat-casa.ogg,Andrés Samael Cortina Ramírez,CC0 1.0\n',encoding='utf-8')
+              except Exception as e:report.append(['casa','Commons fetch failed',str(e)[:160]])
+          
+          # Preserve previous word recordings and never silently reuse sentence audio as word audio.
+          manifest_path.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          
+          # Read vocabulary embedded into Palabra V4 without modifying the wordbook data.
+          words=[]
+          for pattern in (r'const bookModern=(\[.*?\]);',r'const bookDele=(\[.*?\]);'):
+              found=re.search(pattern,index,re.S)
+              if not found:raise RuntimeError('Palabra V4 book data not found; index.html was not changed')
+              words.extend(entry['es'] for entry in json.loads(found.group(1)))
+          # Include learner's two target words, even if not present in both wordbooks.
+          words.extend(['leer','casa'])
+          keys=list(dict.fromkeys(norm(w) for w in words if w))
+          missing=[w for w in keys if w not in sentences and len(w)>2]
+          
+          # Stream official Spanish-only TSV exports; audio and text are licensed separately.
+          base='https://downloads.tatoeba.org/exports/per_language/spa/'
+          try:
+              metadata={}
+              for row in text_csv_bz2(base+'spa_sentences_with_audio.tsv.bz2'):
+                  if len(row)<5 or not valid_audio_license(row[3]):continue
+                  sid,audio_id,user,license,url=row[:5]
+                  if sid.isdecimal() and audio_id.isdecimal():metadata.setdefault(sid,(audio_id,user,license,url))
+              print('Licensed audio metadata:',len(metadata),flush=True)
+              # Choose short, context-rich sentences using vocabulary word boundaries.
+              candidates={}
+              for row in text_csv_bz2(base+'spa_sentences_detailed.tsv.bz2'):
+                  if len(row)<4 or row[0] not in metadata:continue
+                  sid,lang,txt,author=row[:4]
+                  if lang!='spa' or len(txt)>95 or len(txt)<12:continue
+                  tokens=re.findall(r'[^\W_]+',norm(txt),flags=re.U)
+                  if not (3<=len(tokens)<=14):continue
+                  for w in missing:
+                      if len(w.split())==1:
+                          if w not in tokens:continue
+                      elif not re.search(r'(?<!\w)'+re.escape(w)+r'(?!\w)',norm(txt),re.U):continue
+                      score=len(tokens)+abs(len(txt)-48)/50
+                      if w not in candidates or score<candidates[w][0]:
+                          candidates[w]=(score,sid,txt,author)
+              print('Candidate vocabulary matches:',len(candidates),flush=True)
+              (root/'sentence-audio').mkdir(exist_ok=True)
+              added=0
+              for w in missing:
+                  if added>=8:break
+                  if w not in candidates:continue
+                  _,sid,txt,author=candidates[w]
+                  audio_id,speaker,license,url=metadata[sid]
+                  try:
+                      mp3=download('https://tatoeba.org/audio/download/'+audio_id,5*1024*1024)
+                      if not (mp3[:3]==b'ID3' or mp3[:1]==b'\xff'):
+                          raise ValueError('unexpected MP3 signature')
+                      path=f'sentence-audio/{audio_id}.mp3'
+                      (root/path).write_bytes(mp3)
+                      sentences[w]={'text':txt,'audio':path,'speaker':speaker,'audio_license':license,'sentence_author':author,'text_license':'CC BY 2.0 FR','source':'https://tatoeba.org/en/sentences/show/'+sid,'audio_id':audio_id,'attribution_url':url}
+                      added+=1;report.append([w,'Sentence audio added',sid+'; '+license])
+                      time.sleep(2)
+                  except urllib.error.HTTPError as e:
+                      report.append([w,'Tatoeba HTTP error',str(e.code)])
+                      if e.code==429:break
+                  except Exception as e:report.append([w,'Tatoeba audio fetch failed',str(e)[:150]])
+              report.append(['','Batch summary',f'{added} sentence clips added; {len(sentences)} total'])
+          except Exception as e:report.append(['','Tatoeba dataset failure',type(e).__name__+': '+str(e)[:150]])
+          
+          sentence_path.write_text(json.dumps(sentences,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          with (root/'SENTENCE_AUDIO_CREDITS.csv').open('w',encoding='utf-8-sig',newline='') as f:
+              out=csv.writer(f)
+              out.writerow(['Word','Spanish sentence','Sentence author','Text license','Speaker','Audio license','Sentence URL','Audio ID','Attribution URL'])
+              for w,s in sentences.items():out.writerow([w,s['text'],s.get('sentence_author'),s.get('text_license'),s.get('speaker'),s.get('audio_license'),s.get('source'),s.get('audio_id'),s.get('attribution_url')])
+          with (root/'SENTENCE_IMPORT_REPORT.csv').open('w',encoding='utf-8-sig',newline='') as f:
+              out=csv.writer(f);out.writerow(['Word','Status','Detail']);out.writerows(report)
+          print('Sentence import complete',report,flush=True)
+          PY
+          python3 /tmp/palabra_import_audio.py
+      - name: Commit only the audio and player changes
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html sentence-listening.js sentence-manifest.json sentence-audio/ SENTENCE_AUDIO_CREDITS.csv SENTENCE_IMPORT_REPORT.csv audio/ audio-manifest.json
+          if [ -f EXTRA_AUDIO_CREDITS.csv ]; then git add EXTRA_AUDIO_CREDITS.csv; fi
+          if ! git diff --cached --quiet; then
+            git commit -m 'Add licensed Tatoeba sentence listening and CC0 casa audio'
+            git push
+          fi
