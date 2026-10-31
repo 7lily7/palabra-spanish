@@ -23,5 +23,8 @@
   "hoy": "audio/hoy.wav",
   "mañana": "audio/manana.wav",
   "tiempo": "audio/tiempo.wav",
-  "trabajar": "audio/trabajar.wav"
+  "trabajar": "audio/trabajar.wav",
+  "escuchar": "audio/escuchar.wav",
+  "viajar": "audio/viajar.wav",
+  "feliz": "audio/feliz.wav"
 }
