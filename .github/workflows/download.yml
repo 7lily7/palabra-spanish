@@ -1,0 +1,87 @@
+name: Download Spanish audio from Commons
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Find and download recordings
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, re, json, csv, time, html, unicodedata, urllib.parse, urllib.request
+          from html.parser import HTMLParser
+          words = ['hola','gracias','adiós','por favor','buenos días','perdón','¿qué tal?','mucho gusto','libro','clase','profesor','profesora','estudiante','universidad','biblioteca','aprender','escribir','leer','agua','comida','casa','amigo','amiga','hoy','mañana','tiempo','trabajar','escuchar','viajar','feliz']
+          os.makedirs('audio', exist_ok=True)
+          class Strip(HTMLParser):
+              def __init__(self): super().__init__(); self.parts=[]
+              def handle_data(self, text): self.parts.append(text)
+          def plain(value):
+              p=Strip(); p.feed(str(value or '')); return ' '.join(' '.join(p.parts).split())
+          def norm(s):
+              s=unicodedata.normalize('NFKD',s.lower())
+              s=''.join(c for c in s if not unicodedata.combining(c))
+              return re.sub(r'[^a-z0-9]+',' ',s).strip()
+          def get_json(params):
+              params.update({'action':'query','format':'json','formatversion':'2'})
+              url='https://commons.wikimedia.org/w/api.php?'+urllib.parse.urlencode(params)
+              req=urllib.request.Request(url,headers={'User-Agent':'PalabraVocabularyEducational/1.0 (GitHub Actions; contact via GitHub repository)'})
+              with urllib.request.urlopen(req,timeout=18) as response: return json.load(response)
+          licenses=('cc0','public domain','cc by','cc-by')
+          manifest={}; credits=[]; missing=[]
+          for word in words:
+              print('Searching:',word,flush=True)
+              try:
+                  result=get_json({'generator':'search','gsrsearch':'intitle:"'+word.strip('¿?')+'" filetype:audio','gsrnamespace':'6','gsrlimit':'30','prop':'imageinfo','iiprop':'url|extmetadata','iiextmetadatafilter':'LicenseShortName|Artist|LicenseUrl|AttributionRequired|Credit'})
+                  pages=result.get('query',{}).get('pages',[])
+                  candidates=[]
+                  for page in pages:
+                      title=page.get('title','').removeprefix('File:')
+                      stem,ext=os.path.splitext(title)
+                      if ext.lower() not in ('.ogg','.oga','.mp3','.wav','.webm'): continue
+                      target=norm(word.strip('¿?')); name=norm(stem)
+                      if not (name==target or name.endswith(' '+target)):continue
+                      info=(page.get('imageinfo') or [{}])[0]
+                      meta=info.get('extmetadata') or {}
+                      license=plain((meta.get('LicenseShortName') or {}).get('value','')).lower()
+                      if not any(license.startswith(l) for l in licenses) or 'nc' in license or 'nd' in license:continue
+                      if not info.get('url'):continue
+                      candidates.append((0 if 'll-q' in name or name.startswith('es ') else 1,title,ext,info,meta,license))
+                  candidates.sort(key=lambda x:x[0])
+                  if not candidates: missing.append((word,'未找到名称及许可符合条件的音频')); continue
+                  _,title,ext,info,meta,license=candidates[0]
+                  outname=norm(word).replace(' ','-')+('.ogg' if ext.lower()=='.oga' else ext.lower())
+                  dest='audio/'+outname
+                  req=urllib.request.Request(info['url'],headers={'User-Agent':'PalabraVocabularyEducational/1.0 (educational project)'})
+                  with urllib.request.urlopen(req,timeout=30) as response:
+                      payload=response.read(5*1024*1024+1)
+                  if not payload or len(payload)>5*1024*1024:
+                      missing.append((word,'文件为空或大于5MB')); continue
+                  with open(dest,'wb') as f:f.write(payload)
+                  manifest[word]=dest
+                  credits.append([word,title,info.get('descriptionurl',''),license,plain((meta.get('Artist') or {}).get('value','')),plain((meta.get('Credit') or {}).get('value',''))])
+                  print('Saved:',dest,flush=True)
+              except Exception as e:
+                  missing.append((word,str(e)[:150])); print('Skipped:',word,str(e)[:150],flush=True)
+              time.sleep(.3)
+          # Only include audio actually downloaded; do not invent recordings.
+          with open('audio-manifest.json','w',encoding='utf-8') as f:json.dump(manifest,f,ensure_ascii=False,indent=2)
+          with open('AUDIO_CREDITS.csv','w',newline='',encoding='utf-8-sig') as f:
+              w=csv.writer(f);w.writerow(['Word','Commons file','Source page','License','Artist','Credit']);w.writerows(credits)
+          with open('MISSING_AUDIO.csv','w',newline='',encoding='utf-8-sig') as f:
+              w=csv.writer(f);w.writerow(['Word','Reason']);w.writerows(missing)
+          print('Downloaded:',len(manifest),'Missing:',len(missing))
+          PY
+      - name: Commit verified files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add audio/ audio-manifest.json AUDIO_CREDITS.csv MISSING_AUDIO.csv
+          if ! git diff --cached --quiet; then
+            git commit -m "Add Wikimedia Commons Spanish pronunciation files"
+            git push
+          fi
