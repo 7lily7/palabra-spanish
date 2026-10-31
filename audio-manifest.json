@@ -3,5 +3,10 @@
   "gracias": "audio/gracias.ogg",
   "adiós": "audio/adios.ogg",
   "buenos días": "audio/buenos-dias.ogg",
-  "clase": "audio/clase.wav"
+  "clase": "audio/clase.wav",
+  "por favor": "audio/por-favor.wav",
+  "perdón": "audio/perdon.ogg",
+  "¿qué tal?": "audio/que-tal.ogg",
+  "mucho gusto": "audio/mucho-gusto.ogg",
+  "libro": "audio/libro.wav"
 }
