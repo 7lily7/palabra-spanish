@@ -26,5 +26,6 @@
   "trabajar": "audio/trabajar.wav",
   "escuchar": "audio/escuchar.wav",
   "viajar": "audio/viajar.wav",
-  "feliz": "audio/feliz.wav"
+  "feliz": "audio/feliz.wav",
+  "ser": "audio/ser.wav"
 }
