@@ -1,4 +1,4 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f7ede0"><title>Palabra · 巴塞罗那 3D 小猪西语学习</title><style>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f5e9d7"><title>Palabra · Barcelona 3D World</title><style>
 :root{--ink:#243e34;--green:#287657;--bg:#f7f4ed;--muted:#64776d;--line:#dfe5db}*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,'PingFang SC',sans-serif;color:var(--ink)}main{max-width:920px;margin:auto;padding:22px 15px 65px}.top{display:flex;justify-content:space-between;align-items:center}.brand{font:bold 30px Georgia,serif}.pill{border-radius:99px;background:#e4ece5;padding:7px 12px;font-size:12px}h1{margin:25px 0 5px;font-size:clamp(25px,6vw,37px)}.muted,small{color:var(--muted)}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin:24px 0}.stat,.panel{background:#fff;border:1px solid var(--line);border-radius:19px;padding:18px}.stat b{display:block;font-size:26px}.stat small{font-size:12px}nav{display:flex;gap:7px;overflow-x:auto;padding:2px 0 13px}button,input,select,textarea{font:inherit}button{cursor:pointer;border:1px solid var(--line);background:white;color:var(--ink);padding:11px 14px;border-radius:12px}button.active,button.primary{background:var(--green);color:white;border-color:var(--green)}button:disabled{opacity:.55;cursor:not-allowed}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #a0cdb2;outline-offset:2px}.panel{margin:4px 0 16px}.hidden{display:none!important}.toolbar,.actions{display:flex;gap:9px;flex-wrap:wrap;align-items:center;justify-content:space-between}.actions{justify-content:center;margin:12px 0}.actions button{flex:1;min-width:115px}.flash{background:#e6efe6;border:1px solid #d2e2d3;border-radius:23px;padding:35px 20px;min-height:230px;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;margin:18px 0}.word{font:700 clamp(33px,8vw,52px) Georgia,serif;overflow-wrap:anywhere}.translation{font-size:23px;font-weight:650;margin:12px 0}.example{color:var(--muted);font-size:15px}input,select,textarea{border:1px solid var(--line);border-radius:11px;padding:12px;background:white;max-width:100%}.formrow{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.formrow input{flex:1;min-width:135px}.answer{display:block;width:100%;text-align:left;margin:8px 0;background:#f7f9f6}.correct{background:#e0f3e6!important;border-color:#47a36e!important}.wrong{background:#fff0ec!important;border-color:#cb6d56!important}.item{display:flex;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid var(--line);align-items:center}.hint{font-size:13px;color:var(--muted);line-height:1.6}.bar{height:10px;border-radius:9px;background:#e7eae4;overflow:hidden}.bar>div{height:100%;background:#4d9b72}.calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:7px;margin:15px 0}.day{text-align:center;padding:12px 0;border-radius:10px;background:#f0f1ed;font-size:12px}.day.done{background:#bce3ca}.status{min-height:24px;color:var(--green)}@media(max-width:550px){.stats{grid-template-columns:repeat(2,1fr)}.panel{padding:15px}.stat{padding:14px}.stat b{font-size:24px}}
 
 /* Palabra Barcelona 3D visual refresh. Existing learning logic is unchanged. */
@@ -45,8 +45,75 @@ button.primary{background:#a64b34;border-color:#a64b34}button{transition:transfo
 @keyframes pig-excited{0%,100%{transform:translateY(0) scale(1)}35%{transform:translateY(-11px) scale(1.015)}70%{transform:translateY(0) scale(.99)}}
 @media(max-width:760px){.hero-art model-viewer{min-height:300px;height:300px}.pig-speech{font-size:12px;padding:7px 10px}.pig-controls{bottom:44px}.pig-controls button{padding:8px 9px}}
 @media(prefers-reduced-motion:reduce){.hero-art.is-talking model-viewer{animation:none}}
-</style><script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.4.0/model-viewer.min.js"></script></head><body><main><div class="top"><div class="brand">Palabra<span style="color:#b06c4e">.</span></div><span class="pill">Español · V4</span></div><section class="barcelona-hero" aria-label="巴塞罗那小猪西语学习欢迎页">
-  <div class="hero-copy">
+
+/* ========================================
+   Palabra Immersive 3D World, V5
+   All app business logic and progress data unchanged.
+   ======================================== */
+:root{--world-deep:#683f38;--world-cream:#fff7e7;--world-terracotta:#b6533c;--world-gold:#efbd75;--world-blue:#7dbbc1}
+html{scroll-behavior:smooth}
+body.world-3d{background:linear-gradient(160deg,#c3dfe3,#e8dcc8 43%,#efd4b9 100%);min-height:100vh;isolation:isolate;color:#573b34}
+.world-backdrop{position:fixed;inset:0;z-index:-1;overflow:hidden;perspective:1100px;pointer-events:none}
+.world-sky{position:absolute;inset:-5%;background-image:linear-gradient(180deg,rgba(237,249,250,.15) 0%,rgba(245,223,197,.43) 50%,rgba(239,220,185,.65) 100%),url('./scene-sunlit.png');background-size:cover;background-position:center;filter:saturate(.78) blur(3px);transform:scale(1.08);transition:opacity .8s ease,background-image .2s ease}
+body[data-world-theme="mosaic"] .world-sky{background-image:linear-gradient(180deg,rgba(248,235,216,.15),rgba(245,219,183,.52)),url('./scene-mosaic.png');filter:saturate(.9) blur(3px)}
+.world-backdrop:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(255,247,232,.60),rgba(248,238,222,.16) 45%,rgba(245,220,181,.38)),linear-gradient(180deg,transparent 30%,rgba(241,223,198,.7));}
+.world-plaza{position:absolute;bottom:-28%;height:60%;left:-20%;right:-20%;transform:rotateX(66deg);transform-origin:bottom center;background:repeating-linear-gradient(0deg,transparent 0 76px,rgba(106,73,65,.11) 77px 79px),repeating-linear-gradient(90deg,transparent 0 86px,rgba(106,73,65,.11) 87px 89px),linear-gradient(#e7c8a9d6,#efd9bd);box-shadow:0 -35px 140px #f5e8cc inset}
+.world-arch{position:absolute;top:-15%;height:95%;width:19%;border:clamp(9px,1.7vw,25px) solid rgba(222,177,125,.26);border-radius:50% 50% 12px 12px/37% 37% 12px 12px;box-shadow:0 0 50px #fff8e7b5 inset,8px 25px 70px #704d2726;transform:translateZ(-200px)}
+.arch-left{left:-12%}.arch-right{right:-12%}
+.world-light{position:absolute;display:block;width:200px;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,#fff7d5a6,transparent 68%);filter:blur(7px);animation:world-bob 9s ease-in-out infinite;opacity:.8}
+.orb-one{top:15%;left:17%}.orb-two{bottom:24%;right:10%;animation-delay:-4s}
+.world-ui{position:relative;z-index:10;width:100%;padding:12px 14px 0}
+.world-ui-inner{width:min(1120px,100%);margin:auto;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+.world-status{font-size:11px;letter-spacing:2px;color:#6a4940;font-weight:800;background:#fff6e5d6;border:1px solid #fff8ec;padding:9px 13px;border-radius:50px;box-shadow:0 7px 21px #70504419;backdrop-filter:blur(10px)}
+.live-dot{display:inline-block;width:8px;height:8px;margin-right:6px;background:#75b99b;border-radius:50%;box-shadow:0 0 0 4px #75b99b38}
+.world-theme{display:flex;gap:5px;background:#fff7e6d7;padding:4px;border:1px solid #fff;border-radius:100px;box-shadow:0 8px 26px #5b37321c;backdrop-filter:blur(8px)}
+.world-3d .world-theme-btn,.world-3d .world-motion{background:transparent;border:0;border-radius:50px;color:#775748;padding:8px 13px;font-weight:800;font-size:12px}
+.world-3d .world-theme-btn[aria-pressed="true"]{background:#b85a42;color:white;box-shadow:0 4px 10px #9d57474a}
+.world-3d .world-motion{background:#fff7e6dc;border:1px solid #fff;box-shadow:0 6px 18px #5b37321c;backdrop-filter:blur(9px)}
+body.world-3d main{max-width:1110px;padding-top:17px;perspective:1300px;transform-style:preserve-3d}
+.world-3d .top{background:#fff8e9dd;border:1px solid #fff9eb;padding:12px 17px;border-radius:20px;box-shadow:0 10px 30px #69473423;backdrop-filter:blur(15px);transform:translateZ(15px)}
+.world-3d .top .brand{color:#a44837;letter-spacing:-1px}
+.world-3d .pill{background:#f6e6d6;color:#704e43;border:1px solid #f5e7d9}
+.world-3d .barcelona-hero{position:relative;overflow:visible;border-radius:32px;border:3px solid #fff7e7;box-shadow:0 22px 0 #a76c4940,0 42px 65px #62392e3e,0 4px 16px #fff inset;transform-style:preserve-3d;transition:transform .3s ease,box-shadow .3s ease;background:linear-gradient(130deg,#fff2dabf,#fff8e9 55%,#cce0d5e0)}
+.world-3d .hero-copy{z-index:3;transform:translateZ(23px);position:relative}
+.world-3d .hero-art{z-index:2;border-radius:0 29px 29px 0;overflow:hidden;box-shadow:inset 18px 0 36px #76523b18}
+.world-3d .hero-copy h1{color:#a24939;text-shadow:0 3px 0 #fff5e8}
+.world-3d .hero-copy h1 span{color:#5a3f39}
+.hero-3d-kicker{font:800 10px/1.5 system-ui;letter-spacing:2px;color:#b7623a;margin-bottom:7px}
+.world-3d .hero-stamp,.world-3d .city-chip{box-shadow:0 9px 17px #874b3626,0 1px 0 white inset;transform:translateZ(17px)}
+.world-3d .hero-buttons button{box-shadow:0 7px 0 #774e3936,0 14px 19px #6b493a28;transform:translateY(-3px);transition:transform .2s,box-shadow .2s}
+.world-3d .hero-buttons button:active{transform:translateY(2px);box-shadow:0 2px 0 #774e3936}
+.world-3d .section-intro{position:relative;z-index:1;color:#5f413a;text-shadow:0 2px 10px #fff5e3}
+.world-3d .panel,.world-3d .stat,.world-3d nav{background:linear-gradient(140deg,#fffdf3f2,#fff5e5d9);border:1px solid #fff9e8;box-shadow:0 8px 0 #b28a6d30,0 19px 37px #5d45342b,0 1px 0 #fff inset;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);transform-style:preserve-3d;transition:transform .22s ease,box-shadow .22s ease}
+.world-3d .panel{border-radius:24px;position:relative;transform:translateZ(10px)}
+.world-3d .panel:hover{box-shadow:0 10px 0 #ad836638,0 22px 37px #5d45343a}
+.world-3d .stats{perspective:950px}
+.world-3d .stat{border-radius:20px;transform:translateZ(22px) rotateX(2deg);position:relative;overflow:hidden}
+.world-3d .stat:before{content:"";position:absolute;inset:0 auto 0 0;width:5px;background:linear-gradient(#e7a56d,#b25d46)}
+.world-3d .stat b{color:#ab523e;text-shadow:0 2px #fff}
+.world-3d nav{border-radius:22px;padding:10px;transform:translateZ(28px);position:relative}
+.world-3d nav button{background:#fff8ed;border-color:#e9d7c0;color:#7a5546;box-shadow:0 3px 0 #b3957b45}
+.world-3d nav button.active,.world-3d button.primary{background:linear-gradient(#c97756,#a74837);color:#fff;border-color:#b35440;box-shadow:0 4px 0 #793a3155}
+.world-3d .flash{background:linear-gradient(145deg,#fffefa,#fbe9d5);border:2px solid #f6d8bd;border-radius:20px;box-shadow:inset 0 2px 20px #d29d7230,0 7px 0 #c9a18030;transform:translateZ(15px)}
+.world-3d .word{color:#a14433;text-shadow:0 2px 0 white}
+.world-3d .panel input,.world-3d .panel select{background:#fffaf0;border-color:#e6cbb3;border-radius:12px}
+.world-3d .panel button:not(.primary){border-color:#e5cbb4;background:#fffaf1;color:#724638;box-shadow:0 3px 0 #bd98784d}
+.world-3d .panel button:active{transform:translateY(2px)}
+.world-3d .pig-speech{box-shadow:0 8px 0 #b17e5a32,0 17px 26px #65443138;transform:translateZ(35px)}
+.world-3d .pig-controls button{box-shadow:0 4px 0 #9a71513a,0 9px 18px #52372932}
+.world-3d .hero-art model-viewer{filter:drop-shadow(0 14px 12px #4f34223d)}
+.world-3d .status{color:#795749}
+.world-3d .world-tilt{will-change:transform}
+body[data-world-theme="mosaic"]{--world-terracotta:#a3463c;--world-blue:#80a49d}
+body[data-world-theme="mosaic"] .barcelona-hero{background:linear-gradient(135deg,#f9debc,#ffeddd 55%,#d4b4a0)}
+body[data-world-theme="mosaic"] .world-3d .stat b{color:#9b4643}
+@keyframes world-bob{0%,100%{transform:translate3d(0,0,0)}50%{transform:translate3d(15px,-30px,0)}}
+@media(min-width:1100px){.world-3d .hero-art{min-height:490px}.world-3d .hero-art model-viewer{min-height:490px}}
+@media(max-width:760px){.world-ui{padding:9px 8px 0}.world-ui-inner{justify-content:center}.world-status{display:none}.world-3d .world-motion{font-size:11px}.world-3d .world-theme-btn{font-size:11px;padding:8px}.world-3d .barcelona-hero{overflow:hidden;transform:none!important;border-radius:24px}.world-3d .hero-copy{transform:none}.world-3d .hero-art{border-radius:0 0 22px 22px}.world-3d .panel,.world-3d .stat,.world-3d nav{transform:none!important}.world-3d main{padding:12px 11px 75px}.world-arch{opacity:.35}.world-sky{background-position:60% center;filter:blur(6px)}}
+@media(prefers-reduced-motion:reduce){.world-light{animation:none}.world-3d .panel,.world-3d .stat,.world-3d .barcelona-hero{transition:none}html{scroll-behavior:auto}}
+</style><script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.4.0/model-viewer.min.js"></script></head><body class="world-3d" data-world-theme="sunlit"><div class="world-backdrop" aria-hidden="true"><div class="world-sky"></div><div class="world-arch arch-left"></div><div class="world-arch arch-right"></div><div class="world-plaza"></div><span class="world-light orb-one"></span><span class="world-light orb-two"></span></div>
+<div class="world-ui"><div class="world-ui-inner"><span class="world-status"><span class="live-dot"></span> BARCELONA · LIVE 3D</span><div class="world-theme" role="group" aria-label="3D 场景主题"><button type="button" class="world-theme-btn" data-world-theme="sunlit" aria-pressed="true">☀️ 阳光庭院</button><button type="button" class="world-theme-btn" data-world-theme="mosaic" aria-pressed="false">🪄 马赛克宫殿</button></div><button id="worldDepthBtn" type="button" class="world-motion">✦ 立体动效：开启</button></div></div><main><div class="top"><div class="brand">Palabra<span style="color:#b06c4e">.</span></div><span class="pill">Español · V4</span></div><section class="barcelona-hero" aria-label="巴塞罗那小猪西语学习欢迎页">
+  <div class="hero-copy"><div class="hero-3d-kicker">✧ YOUR LITTLE SPANISH UNIVERSE ✧</div>
     <span class="city-chip">✦ BARCELONA · SAGRADA FAMÍLIA</span>
     <h1>¡Hola, amigo!<span>和小猪一起，<br>开启西班牙语之旅。</span></h1>
     <p>从高迪的奇妙建筑出发，今天也记住几个新单词。<br>词书、真人发音、例句听力都为你准备好了。</p>
@@ -147,4 +214,4 @@ function go(tab){const b=document.querySelector('[data-tab="'+tab+'"]');if(b){b.
 document.getElementById('heroBegin')?.addEventListener('click',()=>go('learn'));
 document.getElementById('heroBooks')?.addEventListener('click',()=>{go('learn');document.getElementById('bookSelect')?.focus({preventScroll:true});document.getElementById('bookSelect')?.scrollIntoView({behavior:'smooth',block:'center'});});
 })();
-</script><script src="./sentence-listening.js" defer></script><script src="./pig-interactive.js" defer></script></body></html>
+</script><script src="./sentence-listening.js" defer></script><script src="./pig-interactive.js" defer></script><script src="./palabra-world.js" defer></script></body></html>
