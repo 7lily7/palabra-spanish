@@ -20,5 +20,8 @@
   "comida": "audio/comida.wav",
   "amigo": "audio/amigo.wav",
   "amiga": "audio/amiga.wav",
-  "hoy": "audio/hoy.wav"
+  "hoy": "audio/hoy.wav",
+  "mañana": "audio/manana.wav",
+  "tiempo": "audio/tiempo.wav",
+  "trabajar": "audio/trabajar.wav"
 }
