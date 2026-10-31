@@ -44,5 +44,13 @@
   "país": "audio/pais.wav",
   "ciudad": "audio/ciudad.wav",
   "nacionalidad": "audio/nacionalidad.wav",
-  "idioma": "audio/idioma.wav"
+  "idioma": "audio/idioma.wav",
+  "edad": "audio/edad.wav",
+  "año": "audio/ano.wav",
+  "número": "audio/numero.wav",
+  "pregunta": "audio/pregunta.wav",
+  "respuesta": "audio/respuesta.wav",
+  "palabra": "audio/palabra.wav",
+  "frase": "audio/frase.wav",
+  "página": "audio/pagina.wav"
 }
