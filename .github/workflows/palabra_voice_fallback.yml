@@ -1,0 +1,62 @@
+name: Palabra - Spanish speech fallback
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  add-fallback:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preserve human audio and add browser Spanish voice fallback
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('index.html')
+          s=path.read_text(encoding='utf-8')
+          if 'function fallbackSpanishSpeech(es,token)' in s:
+              print('Spanish fallback is already installed; nothing to change.')
+              raise SystemExit(0)
+          stop_old='function stopAudio(){++audioToken;'
+          stop_new="function stopAudio(){if('speechSynthesis' in window)window.speechSynthesis.cancel();++audioToken;"
+          if s.count(stop_old)!=1:raise RuntimeError('Unexpected stopAudio layout. No changes made.')
+          s=s.replace(stop_old,stop_new,1)
+          marker='async function speak(es){'
+          if s.count(marker)!=1:raise RuntimeError('Unexpected speak layout. No changes made.')
+          new_function=r'''function fallbackSpanishSpeech(es,token){
+            if(!('speechSynthesis' in window)||!('SpeechSynthesisUtterance' in window)){
+              setAudioStatus('本设备不支持语音合成；这个单词暂时没有真人录音。');return;
+            }
+            const engine=window.speechSynthesis;
+            const spanish=engine.getVoices().filter(v=>/^es(?:-|_)/i.test(v.lang));
+            if(!spanish.length){
+              setAudioStatus('未找到西班牙语语音包，请在设备设置中启用西语语音后重试。');return;
+            }
+            const voice=spanish.find(v=>/^es[-_]ES$/i.test(v.lang))||spanish[0];
+            const speech=new SpeechSynthesisUtterance(es);
+            speech.lang=voice.lang;speech.voice=voice;speech.rate=.88;speech.pitch=1.04;
+            speech.onstart=()=>{if(token===audioToken)setAudioStatus('🗣️ 合成语音：'+es+' · '+voice.lang+'（非真人录音）')};
+            speech.onerror=()=>{if(token===audioToken)setAudioStatus('合成发音失败，请检查音量或语音包设置。')};
+            engine.cancel();engine.speak(speech);
+          }
+          '''
+          s=s.replace(marker,new_function+marker,1)
+          original="setAudioStatus('“'+es+'”暂无已授权的站内录音。请上传自有录音；leer 可前往 Forvo 或 SpanishDict 官网试听，但不得未经授权转载。')"
+          if s.count(original)!=1:raise RuntimeError('Unexpected audio fallback marker. No changes made.')
+          s=s.replace(original,'fallbackSpanishSpeech(es,token)',1)
+          path.write_text(s,encoding='utf-8')
+          print('Added synthesized Spanish fallback; existing human recordings and learning progress untouched.')
+          PY
+      - name: Commit only the updated homepage
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          if ! git diff --cached --quiet; then
+            git commit -m 'Add Spanish synthesized voice fallback after human audio'
+            git push
+          else
+            echo 'Nothing to commit.'
+          fi
